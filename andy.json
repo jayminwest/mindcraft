@@ -1,6 +1,10 @@
 {
     "name": "andy",
 
-    "model": "gemini-2.5-pro-preview-03-25"
+    "model": {
+        "provider": "local",
+        "name": "llama3",
+        "url": "http://169.254.141.65:8000"
+    }
 
 }
