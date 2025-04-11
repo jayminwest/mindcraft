@@ -389,11 +389,16 @@ export class Agent {
         });
         // Logging callbacks
         this.bot.on('error' , (err) => {
-            console.error('Error event!', err);
+            console.error(`Bot encountered an error: ${err.code || 'Unknown code'}`, err);
+            // Optionally, decide if specific errors should cause an exit
+            if (err.code === 'ECONNRESET') {
+                console.error('Connection reset by server. Check server status, address, port, and authentication settings.');
+                this.cleanKill(`Connection reset by server (ECONNRESET). Exiting.`, 1);
+            }
         });
         this.bot.on('end', (reason) => {
-            console.warn('Bot disconnected! Killing agent process.', reason)
-            this.cleanKill('Bot disconnected! Killing agent process.');
+            console.warn(`Bot disconnected. Reason: ${reason}. Killing agent process.`);
+            this.cleanKill(`Bot disconnected. Reason: ${reason}. Exiting.`);
         });
         this.bot.on('death', () => {
             this.actions.cancelResume();
