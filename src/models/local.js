@@ -4,8 +4,8 @@ export class Local {
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
-        // Default URL set for testing the remote server
-        this.url = url || 'http://169.254.141.65:8000'; 
+        // Default URL for the Ollama server
+        this.url = url || 'http://192.168.0.38:8000/'; 
         this.chat_endpoint = '/api/chat';
         this.embedding_endpoint = '/api/embeddings';
     }
