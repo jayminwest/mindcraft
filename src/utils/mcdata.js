@@ -54,25 +54,36 @@ export const WOOL_COLORS = [
 
 
 export function initBot(username) {
-    let bot = createBot({
-        username: username,
+    try {
+        let bot = createBot({
+            username: username,
 
-        host: settings.host,
-        port: settings.port,
-        auth: settings.auth,
+            host: settings.host,
+            port: settings.port,
+            auth: settings.auth,
 
-        version: mc_version,
-    });
-    bot.loadPlugin(pathfinder);
-    bot.loadPlugin(pvp);
-    bot.loadPlugin(collectblock);
-    bot.loadPlugin(autoEat);
-    bot.loadPlugin(armorManager); // auto equip armor
-    bot.once('resourcePack', () => {
-        bot.acceptResourcePack();
-    });
+            version: mc_version,
+        });
+        bot.loadPlugin(pathfinder);
+        bot.loadPlugin(pvp);
+        bot.loadPlugin(collectblock);
+        bot.loadPlugin(autoEat);
+        bot.loadPlugin(armorManager); // auto equip armor
+        bot.once('resourcePack', () => {
+            bot.acceptResourcePack();
+        });
 
-    return bot;
+        return bot;
+    } catch (error) {
+        console.error(`Failed to create or initialize bot '${username}'. Error:`, error);
+        if (error.code === 'ECONNRESET' || error.message?.includes('ECONNRESET')) {
+             console.error(`\n>>> ECONNRESET detected during bot creation! <<<\nThis often means the bot couldn't connect to the Minecraft server.\nCheck:\n  1. Server Address & Port: Is '${settings.host}:${settings.port}' correct and reachable?\n  2. Server Status: Is the Minecraft server running?\n  3. Authentication ('auth'): Is '${settings.auth}' compatible with the server's 'online-mode' setting?\n  4. Firewall: Is the connection being blocked?\n`);
+        } else {
+            console.error("An unexpected error occurred during bot creation. See details above.");
+        }
+        // Re-throw the error so the agent creation process fails clearly
+        throw error;
+    }
 }
 
 export function isHuntable(mob) {
