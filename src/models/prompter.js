@@ -124,49 +124,84 @@ export class Prompter {
         });
     }
 
-    _selectAPI(profile) {
-        if (typeof profile === 'string' || profile instanceof String) {
-            profile = {model: profile};
+    _selectAPI(model_config) {
+        // Handle legacy string format: if input is just a model name string
+        if (typeof model_config === 'string' || model_config instanceof String) {
+            model_config = { model: model_config }; // Convert to object format
         }
-        if (!profile.api) {
-            if (profile.model.includes('openrouter/'))
-                profile.api = 'openrouter'; // must do first because shares names with other models
-            else if (profile.model.includes('ollama/'))
-                profile.api = 'ollama'; // also must do early because shares names with other models
-            else if (profile.model.includes('gemini'))
-                profile.api = 'google';
-            else if (profile.model.includes('gpt') || profile.model.includes('o1')|| profile.model.includes('o3'))
-                profile.api = 'openai';
-            else if (profile.model.includes('claude'))
-                profile.api = 'anthropic';
-            else if (profile.model.includes('huggingface/'))
-                profile.api = "huggingface";
-            else if (profile.model.includes('replicate/'))
-                profile.api = 'replicate';
-            else if (profile.model.includes('mistralai/') || profile.model.includes("mistral/"))
-                model_profile.api = 'mistral';
-            else if (profile.model.includes("groq/") || profile.model.includes("groqcloud/"))
-                profile.api = 'groq';
-            else if (profile.model.includes("glhf/"))
-                profile.api = 'glhf';
-            else if (profile.model.includes("hyperbolic/"))
-                profile.api = 'hyperbolic';
-            else if (profile.model.includes('novita/'))
-                profile.api = 'novita';
-            else if (profile.model.includes('qwen'))
-                profile.api = 'qwen';
-            else if (profile.model.includes('grok'))
-                profile.api = 'xai';
-            else if (profile.model.includes('deepseek'))
-                profile.api = 'deepseek';
-	          else if (profile.model.includes('mistral'))
-                profile.api = 'mistral';
-            else 
-                throw new Error('Unknown model:', profile.model);
+
+        // Validate and Standardize: Ensure we have a model name string to work with
+        // Prefer 'name' property, fall back to 'model' property
+        const model_name_string = model_config.name || model_config.model;
+        if (!model_name_string) {
+             throw new Error(`Model configuration is missing 'name' or 'model' property: ${JSON.stringify(model_config)}`);
         }
-        return profile;
+        // Ensure the config object has a 'model' property for compatibility downstream (e.g., _createModel)
+        // Use the determined name string. If 'name' was used, this copies it to 'model'.
+        model_config.model = model_name_string;
+
+
+        // Determine API if not explicitly provided in the config
+        if (!model_config.api) {
+            // Priority 1: Use 'provider' field if available
+            if (model_config.provider) {
+                 if (model_config.provider === 'local') {
+                     model_config.api = 'ollama'; // Map 'local' provider to 'ollama' API
+                 }
+                 // Add mappings for other providers here if needed
+                 // else if (model_config.provider === 'some_other_provider') {
+                 //     model_config.api = 'corresponding_api';
+                 // }
+            }
+
+            // Priority 2: If API still unknown, infer from model name string (prefixes/keywords)
+            if (!model_config.api) {
+                // Check for specific prefixes first
+                if (model_name_string.includes('openrouter/'))
+                    model_config.api = 'openrouter';
+                else if (model_name_string.includes('ollama/')) // Handles cases like "ollama/mistral"
+                    model_config.api = 'ollama';
+                else if (model_name_string.includes('huggingface/'))
+                    model_config.api = "huggingface";
+                else if (model_name_string.includes('replicate/'))
+                    model_config.api = 'replicate';
+                else if (model_name_string.includes('mistralai/') || model_name_string.includes("mistral/")) // Handles "mistralai/mistral-large"
+                    model_config.api = 'mistral';
+                else if (model_name_string.includes("groq/") || model_name_string.includes("groqcloud/"))
+                    model_config.api = 'groq';
+                else if (model_name_string.includes("glhf/"))
+                    model_config.api = 'glhf';
+                else if (model_name_string.includes("hyperbolic/"))
+                    model_config.api = 'hyperbolic';
+                else if (model_name_string.includes('novita/'))
+                    model_config.api = 'novita';
+                // Then check for keywords
+                else if (model_name_string.includes('gemini'))
+                    model_config.api = 'google';
+                else if (model_name_string.includes('gpt') || model_name_string.includes('o1')|| model_name_string.includes('o3'))
+                    model_config.api = 'openai';
+                else if (model_name_string.includes('claude'))
+                    model_config.api = 'anthropic';
+                else if (model_name_string.includes('qwen'))
+                    model_config.api = 'qwen';
+                else if (model_name_string.includes('grok'))
+                    model_config.api = 'xai';
+                else if (model_name_string.includes('deepseek'))
+                    model_config.api = 'deepseek';
+                // Generic mistral check - place carefully if needed, but provider mapping should handle 'local' mistral
+                // else if (model_name_string.includes('mistral'))
+                //     model_config.api = 'mistral'; // Or 'ollama'? Provider mapping is better.
+                else
+                    // If no provider and no recognizable name pattern
+                    throw new Error('Could not determine API from model config: ' + JSON.stringify(model_config));
+            }
+        }
+
+        // Return the config object, now guaranteed to have 'api' and 'model' properties
+        return model_config;
     }
-    _createModel(profile) {
+
+    _createModel(profile) { // profile here is the model_config object returned by _selectAPI
         let model = null;
         if (profile.api === 'google')
             model = new Gemini(profile.model, profile.url, profile.params);
