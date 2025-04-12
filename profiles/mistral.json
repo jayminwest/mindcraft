@@ -1,5 +1,10 @@
 {
-    "name": "Mistral",
+    "name": "mistral",
 
-    "model": "mistral/mistral-large-latest"
+    "model": {
+        "provider": "local",
+        "name": "mistral-small3.1",
+        "url": "http://192.168.0.38:8000/"
+    }
+
 }

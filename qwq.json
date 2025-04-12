@@ -1,9 +1,9 @@
 {
-    "name": "andy",
+    "name": "qwq",
 
     "model": {
         "provider": "local",
-        "name": "mistral-small3.1",
+        "name": "qwq:latest",
         "url": "http://192.168.0.38:8000/"
     }
 
