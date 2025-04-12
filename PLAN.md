@@ -9,9 +9,9 @@ This document outlines the steps to modify the Mindcraft codebase to achieve the
 **Files to Modify:**
 
 *   **`src/agent/history.js`**:
-    *   **STM:** Decide on the STM structure. Potentially keep `this.turns` as STM but manage its size more explicitly (e.g., using `settings.max_messages` as a hard limit).
-    *   **LTM Consolidation:** Refactor the `summarizeMemories` method. Instead of just creating a single `this.memory` string, implement logic to generate summaries of STM chunks and append them to a structured LTM (which could still be stored in `this.memory` or a new property). Consider the frequency and trigger for consolidation.
-    *   **Persistence:** Update `save()` and `load()` to correctly serialize and deserialize the new STM/LTM structures into/from `memory.json`.
+    *   **STM:** Decide on the STM structure. Potentially keep `this.turns` as STM but manage its size more explicitly (e.g., using `settings.max_messages` as a hard limit). **Ensure the chosen structure is JSON-serializable.**
+    *   **LTM Consolidation:** Refactor the `summarizeMemories` method. Instead of just creating a single `this.memory` string, implement logic to generate summaries of STM chunks and append them to a structured LTM (which could still be stored in `this.memory` or a new property). Consider the frequency and trigger for consolidation. **Ensure the structured LTM is JSON-serializable.**
+    *   **Persistence:** Update `save()` and `load()` to correctly handle JSON serialization and deserialization of the new STM/LTM structures into/from `memory.json`.
 *   **`src/models/prompter.js`**:
     *   **Prompt Injection:** Modify `replaceStrings`. Introduce distinct placeholders (e.g., `$STM`, `$LTM`) and update the function to populate them with the relevant memory content from `agent.history`. Update profile prompts (`conversing`, `coding`, etc.) to use these new placeholders instead of just `$MEMORY`.
 *   **`src/agent/memory_bank.js`**:
@@ -24,9 +24,9 @@ This document outlines the steps to modify the Mindcraft codebase to achieve the
 **Files to Modify:**
 
 *   **`src/agent/agent.js`**:
-    *   **State Properties:** Add new properties to the `Agent` class (e.g., `this.internalState = { health: 20, food: 20, saturation: 5 }`).
+    *   **State Properties:** Add new properties to the `Agent` class (e.g., `this.internalState = { health: 20, food: 20, saturation: 5 }`). **Note: This simple object structure is inherently JSON-compatible.**
     *   **State Update:** Implement a method (e.g., `_updateInternalState()`) called periodically by the main `update()` method. This new method should read values from `this.bot.health`, `this.bot.food`, `this.bot.foodSaturation` and update `this.internalState`.
-    *   **Persistence (Optional):** If desired, modify `history.save()` and `history.load()` (via `agent.js`) to persist `this.internalState`.
+    *   **Persistence (Optional):** If desired, modify `history.save()` and `history.load()` (via `agent.js`) to persist `this.internalState` using JSON serialization.
 *   **`src/models/prompter.js`**:
     *   **Prompt Injection:** Modify `replaceStrings` to add a new placeholder (e.g., `$INTERNAL_STATE`) and populate it with a formatted string representing the agent's current health, hunger, etc., from `agent.internalState`. Update relevant profile prompts.
 
@@ -108,12 +108,12 @@ This document outlines the steps to modify the Mindcraft codebase to achieve the
 **Files to Modify:**
 
 *   **`src/agent/history.js`**:
-    *   Verify `save()` correctly serializes the enhanced STM/LTM structures (from Goal 1) into the `data` object.
-    *   Verify `load()` correctly deserializes and restores STM/LTM from the loaded `data`.
+    *   Verify `save()` correctly serializes the enhanced STM/LTM structures (from Goal 1) into a JSON-compatible `data` object.
+    *   Verify `load()` correctly deserializes and restores STM/LTM from the loaded JSON `data`.
 *   **`src/agent/agent.js`**:
     *   If persisting internal state (from Goal 2) is desired:
-        *   Modify `history.save()` callsite (or add logic within `history.save` itself) to include `this.internalState` in the saved data.
-        *   Modify the `load_mem` handling in `agent.start()` to restore `this.internalState` from the loaded data.
+        *   Modify `history.save()` callsite (or add logic within `history.save` itself) to include the JSON-compatible `this.internalState` in the saved data.
+        *   Modify the `load_mem` handling in `agent.start()` to restore `this.internalState` from the loaded JSON data.
 
 ## 6. Adapt for Multi-Agent Scaling
 
