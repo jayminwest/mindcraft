@@ -12,6 +12,7 @@ This document outlines the steps to modify the Mindcraft codebase to achieve the
     *   **STM:** Decide on the STM structure. Potentially keep `this.turns` as STM but manage its size more explicitly (e.g., using `settings.max_messages` as a hard limit). **Ensure the chosen structure is JSON-serializable.**
     *   **LTM Consolidation:** Refactor the `summarizeMemories` method. Instead of just creating a single `this.memory` string, implement logic to generate summaries of STM chunks and append them to a structured LTM (which could still be stored in `this.memory` or a new property). Consider the frequency and trigger for consolidation. **Ensure the structured LTM is JSON-serializable.**
     *   **Persistence:** Update `save()` and `load()` to correctly handle JSON serialization and deserialization of the new STM/LTM structures into/from `memory.json`.
+    *   **Action Feedback:** Ensure that the outcome of tool executions (success/failure messages from `action_manager.js` in Goal 4) are added back into the STM using `history.add()` to close the action-feedback loop.
 *   **`src/models/prompter.js`**:
     *   **Prompt Injection:** Modify `replaceStrings`. Introduce distinct placeholders (e.g., `$STM`, `$LTM`) and update the function to populate them with the relevant memory content from `agent.history`. Update profile prompts (`conversing`, `coding`, etc.) to use these new placeholders instead of just `$MEMORY`.
 *   **`src/agent/memory_bank.js`**:
@@ -65,14 +66,20 @@ This document outlines the steps to modify the Mindcraft codebase to achieve the
           }
         }
         ```
-2.  **Define Core Tools:**
-    *   Identify essential functions in `src/agent/library/skills.js` and `src/agent/library/world.js` to expose. Examples: `craftRecipe`, `goToPosition`, `collectBlock`, `attackNearest`, `placeBlock`, `getInventoryCounts`, `getNearestBlock`, `smeltItem`, `equip`, `discard`.
-    *   Document the exact arguments (name, type, description) for each tool.
+2.  **Create Formal Tool Definitions:**
+    *   Create a dedicated module or file (e.g., `src/agent/tool_definitions.js` or `src/agent/tool_definitions.json`) to formally define each available tool.
+    *   For each tool, specify:
+        *   `name`: The unique identifier used in the JSON `tool` field.
+        *   `description`: A clear explanation for the LLM of what the tool does.
+        *   `args`: An object defining expected arguments (key: argument name, value: object with `type`, `description`, `required` properties).
+        *   `implementation`: A reference or identifier linking to the actual function in `skills.js` or `world.js`.
+    *   This central definition will be used by both the prompter (to inform the LLM) and the action manager (for validation and execution).
 3.  **Modify Prompts:**
     *   **`src/models/prompter.js`**:
         *   Update system prompts in profiles (`this.profile.conversing`, potentially others) accessed via `promptConvo`. Clearly instruct the LLM to respond *only* with JSON matching the defined schema when an action is required.
-        *   Provide the list of available tools and their arguments within the prompt context (potentially using a new placeholder like `$AVAILABLE_TOOLS`).
+        *   Provide the list of available tools and their arguments/descriptions (sourced from the Tool Definitions in step 2) within the prompt context (potentially using a new placeholder like `$AVAILABLE_TOOLS`).
         *   Update `replaceStrings` to populate `$AVAILABLE_TOOLS`.
+        *   **Note:** Ensure *all* relevant agent profiles (`profiles/*.json`) are updated with the new prompt placeholders (`$STM`, `$LTM`, `$INTERNAL_STATE`, `$AVAILABLE_TOOLS`) and instructions for JSON tool output.
     *   **`src/models/<specific_model>.js` (e.g., `gemini.js`)**:
         *   Ensure the `sendRequest` method is compatible with receiving JSON responses. Some models might have specific modes or parameters for JSON output.
 4.  **Refactor Action Execution:**
@@ -81,11 +88,11 @@ This document outlines the steps to modify the Mindcraft codebase to achieve the
         *   **JSON Parsing:** Receive the LLM's response string. Attempt to parse it as JSON. Handle parsing errors.
         *   **Validation:**
             *   Check if the parsed object contains the required `tool` and `args` keys.
-            *   Validate `tool` against the list of defined tools.
-            *   Validate the keys and types of values within `args` against the expected parameters for the chosen tool. (Leverage `src/utils/mcdata.js` for block/item name validation if needed. Consider adapting validation logic from `src/agent/commands/index.js`).
-        *   **Function Mapping:** Create a map or use conditional logic to associate the validated `tool` string with the actual function reference (e.g., `skills.craftRecipe`, `world.goToPosition`).
+            *   Validate `tool` against the defined tools (from step 2).
+            *   Validate the keys and types of values within `args` against the expected parameters defined for the chosen tool. (Leverage `src/utils/mcdata.js` for block/item name validation if needed. Consider adapting validation logic from `src/agent/commands/index.js`).
+        *   **Function Mapping:** Use the `implementation` reference from the tool definition (step 2) to get the actual function reference.
         *   **Safe Execution:** Call the mapped function using `await mappedFunction(this.agent.bot, ...Object.values(validated_args));`. Use a `try...catch` block to handle runtime errors from the skill/world functions.
-        *   **Return Value:** Update the return structure (`{ success, message, interrupted, timedout }`) based on the outcome of the tool execution.
+        *   **Return Value:** Update the return structure (`{ success, message, interrupted, timedout }`) based on the outcome of the tool execution. Ensure this outcome is fed back into STM (as noted in Goal 1).
     *   **`src/agent/agent.js`**:
         *   **Response Handling:** Modify `handleMessage`. When processing an LLM response (`res`), instead of checking for `!commandName` with `containsCommand`, check if `res` is a JSON string representing a tool call.
         *   If it's JSON, pass the raw JSON string (or the parsed object) to `this.actions.runAction` (or the refactored execution logic).
@@ -134,5 +141,6 @@ This document outlines the steps to modify the Mindcraft codebase to achieve the
 
 *   Implement goals sequentially or in parallel where feasible (e.g., Memory and State can be done somewhat independently before integrating into the Cognitive Cycle).
 *   Goal 4 (Tool Use Refactor) is the most significant architectural change and should be planned carefully.
-*   Test thoroughly after each major change, especially the tool use refactor.
-*   Use version control (git) extensively. Create branches for each major feature.
+*   **Configuration:** Review and add necessary configuration options to `settings.js` for new features (e.g., LTM consolidation frequency, self-prompt trigger thresholds, tool schema version).
+*   **Testing:** Test thoroughly after each major change, especially the tool use refactor. Consider adding specific unit tests for tool argument validation (in `action_manager.js`) and integration tests for the cognitive cycle (in `self_prompter.js`).
+*   **Version Control:** Use version control (git) extensively. Create branches for each major feature.
